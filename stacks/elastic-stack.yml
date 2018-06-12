@@ -1,0 +1,61 @@
+version: "3.3"
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+    environment:
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    networks:
+      - default
+    deploy:
+      placement:
+        constraints: [node.role == worker]
+      resources:
+        reservations:
+          memory: 1000M
+        limits:
+          memory: 1500M
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:6.2.4
+    networks:
+      - default
+      - proxy
+    environment:
+      - xpack.security.enabled=false
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    deploy:
+      labels:
+        - com.df.notify=true
+        - com.df.distribute=true
+        - com.df.servicePath=/app,/elasticsearch,/api,/ui,/bundles,/plugins,/status,/es_admin
+        - com.df.port=5601
+
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:6.2.4
+    user: root
+    networks:
+      - default 
+    volumes:
+      - /proc:/hostfs/proc:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /:/hostfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      mode: global
+      resources:
+        reservations:
+          memory: 100M
+    configs:
+      - metricbeat.yml 
+    command: metricbeat -c /metricbeat.yml -e --system.hostfs=/hostfs
+
+configs:
+  metricbeat.yml:
+    file: ./metricbeat.yml
+
+networks:
+    proxy:
+        external: true
+    default:
